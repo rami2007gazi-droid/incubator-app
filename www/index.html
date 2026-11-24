@@ -71,6 +71,7 @@ $("#sp").onchange=()=>$("#cu").style.display=$("#sp").value==8?"block":"none";
 function ev(b){
   const hatch=b.start+b.days*DAY,stop=hatch-b.lock*DAY,iv=b.iv*HR,o=[];
   for(let k=1;b.start+k*iv<stop;k++)o.push({at:b.start+k*iv,t:"🔄 وقت التقليب",b:b.name+": حان موعد تقليب البيض"});
+  if(b.start+5*DAY<stop)o.push({at:b.start+5*DAY,t:"🔦 وقت الفحص بالضوء",b:b.name+": افحص البيض وسجّل عدد الفارغ والمخصب"});
   if(stop>b.start)o.push({at:stop,t:"⛔ إيقاف التقليب",b:b.name+": توقف عن التقليب وارفع الرطوبة"});
   o.push({at:hatch-DAY,t:"⏳ باقي يوم على الفقس",b:b.name+": يبدأ الفقس غداً"});
   o.push({at:hatch,t:"🐣 موعد الفقس",b:b.name+": حان موعد الفقس!"});
@@ -123,10 +124,19 @@ function calc(b){
   return{age,hatch,stop,next,st,cls,now,pct:Math.min(100,age/(b.days*DAY)*100)};
 }
 
+const pc=(n,t)=>t?Math.round(n/t*100):0;
+const num=s=>+String(s).replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[۰-۹]/g,d=>"۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+function cand(b,c){
+  const e=b.cand;
+  if(e)return `<div class="box"><div class="sub">🔦 نتيجة الفحص (اليوم 5)</div><div class="sub">✅ مخصبة: <b class="ok">${e.f}</b> (${pc(e.f,b.eggs)}%)<br>❌ فارغة: <b class="no">${e.c}</b> (${pc(e.c,b.eggs)}%)<br>من أصل ${b.eggs} بيضة</div><div class="acts"><button class="s" data-a="cand">تعديل النتيجة</button></div></div>`;
+  if(c.age>=5*DAY)return `<div class="box"><div class="sub">🔦 حان الفحص بالضوء. سجّل عدد البيض الفارغ (غير المخصب).</div><div class="acts"><button data-a="cand">📝 تسجيل نتيجة الفحص</button></div></div>`;
+  return `<div class="box"><div class="sub">🔦 الفحص بالضوء بعد اليوم 5: ${fd(b.start+5*DAY)}</div></div>`;
+}
+
 function render(){
   const L=$("#list");
   if(!S.b.length){L.innerHTML='<div class="empty">لا توجد دفعات بعد.<br>اضغط «+ دفعة» للبدء 🥚</div>';return}
-  L.innerHTML=S.b.map(b=>{const c=calc(b);return `<div class="card" data-id="${b.id}">
+  L.innerHTML=S.b.map(b=>{const c=calc(b);return `<div class="card" data-id="${b.id}" data-cd="${c.age>=5*DAY?1:0}">
   <div class="row"><b>${b.name} · ${b.eggs} بيضة</b><span class="tag ${c.cls}" data-k="st"></span></div>
   <div class="sub">عمر الفقاسة (يوم : ساعة : دقيقة : ثانية)</div>
   <div class="big" data-k="age"></div>
@@ -136,6 +146,7 @@ function render(){
   <div class="big" style="font-size:20px;margin:4px 0" data-k="nx"></div>
   <div class="sub" data-k="nxd"></div>
   <div class="sub">آخر تقليب: ${b.log&&b.log.length?fd(b.log[b.log.length-1]):"—"} · إجمالي: ${(b.log||[]).length} مرة<br>إيقاف التقليب: ${fd(c.stop)}</div></div>
+  ${cand(b,c)}
   <div class="acts"><button data-a="turn">✅ تم التقليب</button><button class="d" data-a="del">حذف</button></div></div>`}).join("");
   tick();
 }
@@ -144,6 +155,7 @@ function tick(){
   S.b.forEach(b=>{
     const el=$('.card[data-id="'+b.id+'"]');if(!el)return;
     const c=calc(b),q=k=>el.querySelector('[data-k="'+k+'"]');
+    if(el.dataset.cd!=(c.age>=5*DAY?1:0)){render();return}
     q("age").textContent=dur(c.age);
     q("bar").style.width=c.pct+"%";
     q("dayn").textContent="اليوم "+Math.min(b.days,Math.floor(c.age/DAY)+1);
@@ -158,6 +170,13 @@ $("#list").onclick=e=>{
   const a=e.target.dataset.a;if(!a)return;
   const id=+e.target.closest(".card").dataset.id,b=S.b.find(x=>x.id==id);
   if(a==="turn"){(b.log=b.log||[]).push(Date.now());save();render()}
+  if(a==="cand"){
+    const v=prompt("كم بيضة فارغة (غير مخصبة)؟ من أصل "+b.eggs+" بيضة",b.cand?b.cand.c:0);
+    if(v===null)return;
+    const c=Math.round(num(v));
+    if(!(c>=0&&c<=b.eggs))return alert("رقم غير صحيح، يجب أن يكون بين 0 و"+b.eggs);
+    b.cand={c,f:b.eggs-c};save();render();
+  }
   if(a==="del"&&confirm("حذف الدفعة؟")){b.gone=1;plan(b);S.b=S.b.filter(x=>x.id!=id);save();render()}
 };
 
