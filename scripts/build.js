@@ -25,6 +25,20 @@ if (rf) {
   fs.writeFileSync(hf, fs.readFileSync(hf, "utf8").replace(/sound:"ringtone\.[a-z0-9]+"/, `sound:"${rf.toLowerCase()}"`));
 }
 
+// أيقونة التطبيق: تُنسخ من resources/icons فوق أيقونات أندرويد الافتراضية
+const iconsDir = path.join("resources", "icons");
+if (fs.existsSync(iconsDir)) {
+  const resDir = path.join("android", "app", "src", "main", "res");
+  const copyTree = (src, dst) => {
+    fs.mkdirSync(dst, { recursive: true });
+    for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+      const s = path.join(src, e.name), d = path.join(dst, e.name);
+      e.isDirectory() ? copyTree(s, d) : fs.copyFileSync(s, d);
+    }
+  };
+  copyTree(iconsDir, resDir);
+}
+
 run("npx cap sync android");
 
 const win = process.platform === "win32";
