@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d97706">
+<title>مفقسة - عمر الفقاسة والتقليب</title>
+<style>
+:root{--bg:#fff8ec;--c:#fff;--t:#2b2218;--m:#7a6a58;--a:#d97706;--g:#16a34a;--r:#dc2626;--b:#eadfcb}
+@media(prefers-color-scheme:dark){:root{--bg:#17130e;--c:#241d15;--t:#f4ead9;--m:#a8977f;--b:#3a2f21}}
+*{box-sizing:border-box;margin:0;font-family:system-ui,"Segoe UI",Tahoma,sans-serif}
+body{background:var(--bg);color:var(--t);padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 16px)}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 4px}
+h1{font-size:20px}
+button{border:0;border-radius:12px;padding:10px 14px;font-size:14px;font-weight:600;background:var(--a);color:#fff}
+button.s{background:var(--b);color:var(--t)}button.d{background:transparent;color:var(--r)}
+.card{background:var(--c);border:1px solid var(--b);border-radius:18px;padding:14px;margin-bottom:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.big{font-size:26px;font-weight:800;color:var(--a);margin:8px 0;direction:ltr;text-align:center;letter-spacing:.5px}
+.sub{font-size:13px;color:var(--m);line-height:1.8}
+.bar{height:10px;background:var(--b);border-radius:9px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--a);border-radius:9px;transition:width .5s}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;background:var(--b)}
+.ok{color:var(--g)}.no{color:var(--r)}
+.box{background:var(--bg);border-radius:12px;padding:10px;margin-top:8px}
+label{display:block;font-size:13px;color:var(--m);margin:10px 0 4px}
+input,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--b);background:var(--bg);color:var(--t);font-size:15px}
+.acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.acts button{flex:1}
+#form{display:none}
+#bn{display:none;position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:10px;right:10px;z-index:9;background:var(--a);color:#fff;padding:14px;border-radius:16px;box-shadow:0 8px 24px #0006;text-align:center}
+#bn button{margin-top:8px;background:#fff;color:#000}
+.empty{text-align:center;color:var(--m);padding:40px 10px}
+</style>
+</head>
+<body>
+<div id="bn"><b id="bt"></b><div id="bb" style="margin:6px 0"></div><button id="bx">إيقاف التنبيه</button></div>
+<header><h1>🐣 المفقسة</h1><div><button class="s" id="tn">🔔 اختبار</button> <button id="ad">+ دفعة</button></div></header>
+
+<div class="card" id="form">
+  <label>اسم الدفعة</label><input id="nm" placeholder="مثال: دجاج بلدي">
+  <label>نوع البيض</label><select id="sp"></select>
+  <div id="cu" style="display:none"><label>مدة الحضانة (أيام)</label><input id="cd" type="number" min="1" value="21"></div>
+  <label>عدد البيض</label><input id="ec" type="number" min="1" value="20">
+  <label>بداية الحضانة (التاريخ والوقت)</label><input id="st" type="datetime-local">
+  <label>التقليب كل (ساعات)</label><input id="iv" type="number" min="1" max="24" value="8">
+  <div class="acts"><button id="sv">حفظ</button><button class="s" id="cn">إلغاء</button></div>
+</div>
+
+<div id="list"></div>
+
+<script>
+const DAY=864e5,HR=36e5,$=s=>document.querySelector(s);
+const SP=[["دجاج",21,3],["بط",28,3],["بط مسكوفي",35,3],["إوز",30,3],["رومي",28,3],["سمان",17,3],["حمام",18,2],["نعام",42,3],["مخصص",21,3]];
+const LN=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;
+let S;try{S=JSON.parse(localStorage.getItem("inc")||"")}catch(e){}
+S=S&&S.b?S:{b:[],n:1};
+const save=()=>{try{localStorage.setItem("inc",JSON.stringify(S))}catch(e){}};
+const fd=t=>{const d=new Date(t);return "\u2066"+p2(d.getDate())+"/"+p2(d.getMonth()+1)+"/"+d.getFullYear()+"  "+p2(d.getHours())+":"+p2(d.getMinutes())+"\u2069"};
+const p2=n=>String(n).padStart(2,"0");
+const dur=ms=>{ms=Math.max(0,ms);const s=Math.floor(ms/1e3);return Math.floor(s/86400)+"ي "+p2(Math.floor(s%86400/3600))+":"+p2(Math.floor(s%3600/60))+":"+p2(s%60)};
+const loc=t=>{const d=new Date(t-new Date(t).getTimezoneOffset()*6e4);return d.toISOString().slice(0,16)};
+
+let AC;
+const unlock=()=>{try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume()}catch(e){}};
+document.addEventListener("click",unlock);
+function beep(){try{unlock();[0,.35,.7,1.05,1.4,1.75].forEach((t,i)=>{const o=AC.createOscillator(),g=AC.createGain(),s=AC.currentTime+t;o.type="sine";o.frequency.value=i%2?988:740;o.connect(g);g.connect(AC.destination);g.gain.setValueAtTime(.5,s);g.gain.exponentialRampToValueAtTime(.001,s+.3);o.start(s);o.stop(s+.32)});if(navigator.vibrate)navigator.vibrate([300,150,300,150,300])}catch(e){}}
+const CH=LN?LN.createChannel({id:"hatch2",sound:"ringtone.wav",name:"تنبيهات المفقسة",description:"مواعيد التقليب والفقس",importance:5,visibility:1,vibration:true,lights:true}).catch(()=>{}):0;
+SP.forEach((s,i)=>$("#sp").add(new Option(s[0]+(i<8?" ("+s[1]+" يوم)":""),i)));
+$("#sp").onchange=()=>$("#cu").style.display=$("#sp").value==8?"block":"none";
+
+function ev(b){
+  const hatch=b.start+b.days*DAY,stop=hatch-b.lock*DAY,iv=b.iv*HR,o=[];
+  for(let k=1;b.start+k*iv<stop;k++)o.push({at:b.start+k*iv,t:"🔄 وقت التقليب",b:b.name+": حان موعد تقليب البيض"});
+  if(stop>b.start)o.push({at:stop,t:"⛔ إيقاف التقليب",b:b.name+": توقف عن التقليب وارفع الرطوبة"});
+  o.push({at:hatch-DAY,t:"⏳ باقي يوم على الفقس",b:b.name+": يبدأ الفقس غداً"});
+  o.push({at:hatch,t:"🐣 موعد الفقس",b:b.name+": حان موعد الفقس!"});
+  return o.sort((a,c)=>a.at-c.at);
+}
+
+async function perm(){try{if(LN)await LN.requestPermissions();else if("Notification"in window&&Notification.permission==="default")await Notification.requestPermission()}catch(e){}}
+
+async function plan(b){
+  if(!LN)return;
+  try{
+    await CH;
+    const pend=await LN.getPending();
+    const ids=pend.notifications.filter(n=>Math.floor(n.id/1000)==b.id).map(n=>({id:n.id}));
+    if(ids.length)await LN.cancel({notifications:ids});
+    if(b.gone)return;
+    const now=Date.now(),list=ev(b).filter(e=>e.at>now).slice(0,300);
+    if(list.length)await LN.schedule({notifications:list.map((e,i)=>({id:b.id*1000+i,channelId:"hatch2",title:e.t,body:e.b,schedule:{at:new Date(e.at),allowWhileIdle:true}}))});
+  }catch(e){}
+}
+
+let bi;
+function banner(t,b){$("#bt").textContent=t;$("#bb").textContent=b;$("#bn").style.display="block";clearInterval(bi);bi=setInterval(beep,5000)}
+$("#bx").onclick=()=>{$("#bn").style.display="none";clearInterval(bi)};
+async function notify(t,b){
+  try{
+    if(LN)await LN.schedule({notifications:[{id:999999,channelId:"hatch2",title:t,body:b,schedule:{at:new Date(Date.now()+1500)}}]});
+    else if("Notification"in window&&Notification.permission==="granted")new Notification(t,{body:b});
+    else banner(t,b);
+  }catch(e){}
+}
+
+// يشغّل الصوت داخل التطبيق عند كل موعد (والإشعار في المتصفح)
+let lastCheck=Date.now();
+setInterval(()=>{
+  const now=Date.now();let hit=0;
+  S.b.forEach(b=>ev(b).forEach(e=>{if(e.at>lastCheck&&e.at<=now){hit=1;if(!LN)notify(e.t,e.b)}}));
+  if(hit)beep();lastCheck=now;
+},1000);
+
+function calc(b){
+  const now=Date.now(),hatch=b.start+b.days*DAY,stop=hatch-b.lock*DAY,iv=b.iv*HR;
+  const age=Math.max(0,now-b.start);
+  let next=null;
+  if(now<stop){const k=Math.max(1,Math.floor((now-b.start)/iv)+1);const n=b.start+k*iv;if(n<stop)next=n}
+  let st="🔄 مرحلة التقليب",cls="";
+  if(now<b.start){st="⏰ لم تبدأ بعد"}
+  else if(now>=hatch){st="🐣 حان موعد الفقس";cls="ok"}
+  else if(now>=stop){st="⛔ تثبيت - لا تقلّب";cls="no"}
+  return{age,hatch,stop,next,st,cls,now,pct:Math.min(100,age/(b.days*DAY)*100)};
+}
+
+function render(){
+  const L=$("#list");
+  if(!S.b.length){L.innerHTML='<div class="empty">لا توجد دفعات بعد.<br>اضغط «+ دفعة» للبدء 🥚</div>';return}
+  L.innerHTML=S.b.map(b=>{const c=calc(b);return `<div class="card" data-id="${b.id}">
+  <div class="row"><b>${b.name} · ${b.eggs} بيضة</b><span class="tag ${c.cls}" data-k="st"></span></div>
+  <div class="sub">عمر الفقاسة (يوم : ساعة : دقيقة : ثانية)</div>
+  <div class="big" data-k="age"></div>
+  <div class="bar"><i data-k="bar"></i></div>
+  <div class="sub"><span data-k="dayn"></span> من ${b.days} يوماً<br>بداية: ${fd(b.start)}<br>الفقس المتوقع: <b>${fd(c.hatch)}</b><br>المتبقي للفقس: <b data-k="left"></b></div>
+  <div class="box"><div class="sub">🔄 التقليب القادم (كل ${b.iv} ساعة)</div>
+  <div class="big" style="font-size:20px;margin:4px 0" data-k="nx"></div>
+  <div class="sub" data-k="nxd"></div>
+  <div class="sub">آخر تقليب: ${b.log&&b.log.length?fd(b.log[b.log.length-1]):"—"} · إجمالي: ${(b.log||[]).length} مرة<br>إيقاف التقليب: ${fd(c.stop)}</div></div>
+  <div class="acts"><button data-a="turn">✅ تم التقليب</button><button class="d" data-a="del">حذف</button></div></div>`}).join("");
+  tick();
+}
+
+function tick(){
+  S.b.forEach(b=>{
+    const el=$('.card[data-id="'+b.id+'"]');if(!el)return;
+    const c=calc(b),q=k=>el.querySelector('[data-k="'+k+'"]');
+    q("age").textContent=dur(c.age);
+    q("bar").style.width=c.pct+"%";
+    q("dayn").textContent="اليوم "+Math.min(b.days,Math.floor(c.age/DAY)+1);
+    q("left").textContent=c.now>=c.hatch?"انتهت المدة":dur(c.hatch-c.now);
+    q("st").textContent=c.st;
+    q("nx").textContent=c.next?dur(c.next-c.now):"—";
+    q("nxd").textContent=c.next?"الموعد: "+fd(c.next):(c.now>=c.stop?"انتهى التقليب":"");
+  });
+}
+
+$("#list").onclick=e=>{
+  const a=e.target.dataset.a;if(!a)return;
+  const id=+e.target.closest(".card").dataset.id,b=S.b.find(x=>x.id==id);
+  if(a==="turn"){(b.log=b.log||[]).push(Date.now());save();render()}
+  if(a==="del"&&confirm("حذف الدفعة؟")){b.gone=1;plan(b);S.b=S.b.filter(x=>x.id!=id);save();render()}
+};
+
+$("#ad").onclick=()=>{$("#form").style.display="block";$("#st").value=loc(Date.now());perm()};
+$("#cn").onclick=()=>$("#form").style.display="none";
+$("#tn").onclick=async()=>{await perm();beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅")};
+$("#sv").onclick=()=>{
+  const i=+$("#sp").value,sp=SP[i],start=new Date($("#st").value).getTime();
+  if(!start)return alert("اختر وقت البداية");
+  const b={id:S.n++,name:$("#nm").value.trim()||sp[0],eggs:+$("#ec").value||1,start,days:i==8?(+$("#cd").value||21):sp[1],lock:sp[2],iv:Math.max(1,+$("#iv").value||8),log:[]};
+  S.b.push(b);save();plan(b);$("#form").style.display="none";$("#nm").value="";render();
+};
+
+S.b.forEach(plan);render();setInterval(tick,1000);
+</script>
+</body>
+</html>

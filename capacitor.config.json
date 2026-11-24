@@ -1,0 +1,6 @@
+{
+  "appId": "com.hatch.incubator",
+  "appName": "المفقسة",
+  "webDir": "www",
+  "android": { "backgroundColor": "#fff8ec" }
+}
