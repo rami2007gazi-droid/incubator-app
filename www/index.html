@@ -42,7 +42,7 @@ input,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--b
   <div id="cu" style="display:none"><label>مدة الحضانة (أيام)</label><input id="cd" type="number" min="1" value="21"></div>
   <label>عدد البيض</label><input id="ec" type="number" min="1" value="20">
   <label>بداية الحضانة (التاريخ والوقت)</label><input id="st" type="datetime-local">
-  <label>التقليب كل (ساعات)</label><input id="iv" type="number" min="1" max="24" value="8">
+  <label>التقليب كل (ساعات)</label><input id="iv" type="number" min="1" max="24" value="8"><div class="sub" id="ivh">= 3 مرات يومياً</div>
   <div class="acts"><button id="sv">حفظ</button><button class="s" id="cn">إلغاء</button></div>
 </div>
 
@@ -70,7 +70,8 @@ $("#sp").onchange=()=>$("#cu").style.display=$("#sp").value==8?"block":"none";
 
 function ev(b){
   const hatch=b.start+b.days*DAY,stop=hatch-b.lock*DAY,iv=b.iv*HR,o=[];
-  for(let k=1;b.start+k*iv<stop;k++)o.push({at:b.start+k*iv,t:"🔄 وقت التقليب",b:b.name+": حان موعد تقليب البيض"});
+  const bs=b.tb||b.start;
+  for(let k=b.tb?0:1;bs+k*iv<stop;k++)o.push({at:bs+k*iv,t:"🔄 وقت التقليب",b:b.name+": حان موعد تقليب البيض"});
   if(b.start+5*DAY<stop)o.push({at:b.start+5*DAY,t:"🔦 وقت الفحص بالضوء",b:b.name+": افحص البيض وسجّل عدد الفارغ والمخصب"});
   if(stop>b.start)o.push({at:stop,t:"⛔ إيقاف التقليب",b:b.name+": توقف عن التقليب وارفع الرطوبة"});
   o.push({at:hatch-DAY,t:"⏳ باقي يوم على الفقس",b:b.name+": يبدأ الفقس غداً"});
@@ -116,7 +117,7 @@ function calc(b){
   const now=Date.now(),hatch=b.start+b.days*DAY,stop=hatch-b.lock*DAY,iv=b.iv*HR;
   const age=Math.max(0,now-b.start);
   let next=null;
-  if(now<stop){const k=Math.max(1,Math.floor((now-b.start)/iv)+1);const n=b.start+k*iv;if(n<stop)next=n}
+  if(now<stop){const bs=b.tb||b.start,k=Math.max(b.tb?0:1,Math.floor((now-bs)/iv)+1);const n=bs+k*iv;if(n<stop)next=n}
   let st="🔄 مرحلة التقليب",cls="";
   if(now<b.start){st="⏰ لم تبدأ بعد"}
   else if(now>=hatch){st="🐣 حان موعد الفقس";cls="ok"}
@@ -142,12 +143,12 @@ function render(){
   <div class="big" data-k="age"></div>
   <div class="bar"><i data-k="bar"></i></div>
   <div class="sub"><span data-k="dayn"></span> من ${b.days} يوماً<br>بداية: ${fd(b.start)}<br>الفقس المتوقع: <b>${fd(c.hatch)}</b><br>المتبقي للفقس: <b data-k="left"></b></div>
-  <div class="box"><div class="sub">🔄 التقليب القادم (كل ${b.iv} ساعة)</div>
+  <div class="box"><div class="sub">🔄 التقليب القادم (كل ${+b.iv.toFixed(2)} ساعة · ${+(24/b.iv).toFixed(1)} مرة يومياً)</div>
   <div class="big" style="font-size:20px;margin:4px 0" data-k="nx"></div>
   <div class="sub" data-k="nxd"></div>
   <div class="sub">آخر تقليب: ${b.log&&b.log.length?fd(b.log[b.log.length-1]):"—"} · إجمالي: ${(b.log||[]).length} مرة<br>إيقاف التقليب: ${fd(c.stop)}</div></div>
   ${cand(b,c)}
-  <div class="acts"><button data-a="turn">✅ تم التقليب</button><button class="d" data-a="del">حذف</button></div></div>`}).join("");
+  <div class="acts"><button data-a="turn">✅ تم التقليب</button><button class="s" data-a="edt">⚙️ تعديل التقليب</button><button class="d" data-a="del">حذف</button></div></div>`}).join("");
   tick();
 }
 
@@ -177,10 +178,30 @@ $("#list").onclick=e=>{
     if(!(c>=0&&c<=b.eggs))return alert("رقم غير صحيح، يجب أن يكون بين 0 و"+b.eggs);
     b.cand={c,f:b.eggs-c};save();render();
   }
+  if(a==="edt"){
+    const v=prompt("كم مرة تقلّب البيض في اليوم؟ (من 1 إلى 24)",+(24/b.iv).toFixed(1));
+    if(v===null)return;
+    const n=num(v);
+    if(!(n>=1&&n<=24))return alert("اكتب رقماً من 1 إلى 24");
+    const t=prompt("وقت التقليب القادم بصيغة 24 ساعة، مثل 08:00 (اتركه فارغاً لعدم التغيير)","");
+    if(t===null)return;
+    const ts=String(t).trim().replace(/[٠-٩]/g,d=>"٠١٢٣٤٥٦٧٨٩".indexOf(d));
+    let tb=b.tb;
+    if(ts){
+      const m=/^(\d{1,2})[:.](\d{2})$/.exec(ts);
+      if(!m||+m[1]>23||+m[2]>59)return alert("صيغة الوقت غير صحيحة، مثال: 08:00");
+      const d=new Date();d.setHours(+m[1],+m[2],0,0);
+      if(d.getTime()<=Date.now())d.setDate(d.getDate()+1);
+      tb=d.getTime();
+    }
+    b.iv=24/n;if(tb)b.tb=tb;
+    save();plan(b);render();
+  }
   if(a==="del"&&confirm("حذف الدفعة؟")){b.gone=1;plan(b);S.b=S.b.filter(x=>x.id!=id);save();render()}
 };
 
 $("#ad").onclick=()=>{$("#form").style.display="block";$("#st").value=loc(Date.now());perm()};
+$("#iv").oninput=()=>{const h=Math.max(1,+$("#iv").value||8);$("#ivh").textContent="= "+(+(24/h).toFixed(1))+" مرة يومياً"};
 $("#cn").onclick=()=>$("#form").style.display="none";
 $("#tn").onclick=async()=>{await perm();beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅")};
 $("#sv").onclick=()=>{
