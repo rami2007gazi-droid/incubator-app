@@ -39,6 +39,21 @@ if (fs.existsSync(iconsDir)) {
   copyTree(iconsDir, resDir);
 }
 
+// تكرار صوت إشعار التقليب حتى يُلغى الإشعار (FLAG_INSISTENT) عند وجود extra.loop
+{
+  const lnm = path.join("node_modules", "@capacitor", "local-notifications", "android", "src", "main", "java", "com", "capacitorjs", "plugins", "localnotifications", "LocalNotificationManager.java");
+  let src = fs.readFileSync(lnm, "utf8");
+  const needle = "Notification buildNotification = mBuilder.build();";
+  if (!src.includes(needle)) throw new Error("تعذّر تعديل LocalNotificationManager: تغيّر الكود في هذه النسخة");
+  if (!src.includes("FLAG_INSISTENT")) {
+    src = src.replace(needle, needle + `
+        if (localNotification.getExtra() != null && localNotification.getExtra().optBoolean("loop", false)) {
+            buildNotification.flags |= Notification.FLAG_INSISTENT;
+        }`);
+    fs.writeFileSync(lnm, src);
+  }
+}
+
 // إضافة أندرويد لاختيار نغمة من الهاتف (native/RingtonePickerPlugin.java)
 {
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
