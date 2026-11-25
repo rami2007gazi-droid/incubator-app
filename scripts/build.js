@@ -39,6 +39,29 @@ if (fs.existsSync(iconsDir)) {
   copyTree(iconsDir, resDir);
 }
 
+// إضافة أندرويد لاختيار نغمة من الهاتف (native/RingtonePickerPlugin.java)
+{
+  const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  const main = walk(path.join("android", "app", "src", "main", "java")).find(f => f.endsWith("MainActivity.java"));
+  if (!main) throw new Error("MainActivity.java غير موجود");
+  const pkg = /package\s+([\w.]+);/.exec(fs.readFileSync(main, "utf8"))[1];
+  const plugin = fs.readFileSync(path.join("native", "RingtonePickerPlugin.java"), "utf8").replace(/__PKG__/g, pkg);
+  fs.writeFileSync(path.join(path.dirname(main), "RingtonePickerPlugin.java"), plugin);
+  fs.writeFileSync(main, `package ${pkg};
+
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RingtonePickerPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+}
+`);
+}
+
 run("npx cap sync android");
 
 const win = process.platform === "win32";

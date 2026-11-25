@@ -104,7 +104,7 @@ dl.facts.main dd{font-size:15px}
 
 <header>
   <div><h1>المفقسة</h1><div class="hs" id="hs"></div></div>
-  <div class="hb"><button class="ghost" id="tn">اختبار التنبيه</button><button class="ghost" id="bkb">نسخة احتياطية</button></div>
+  <div class="hb"><button class="ghost" id="tn">اختبار التنبيه</button><button class="ghost" id="rgb">نغمة التنبيه</button><button class="ghost" id="bkb">نسخة احتياطية</button></div>
 </header>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="glow" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e08a00"/><stop offset=".6" stop-color="#f2a900"/><stop offset="1" stop-color="#ffd34d"/></linearGradient></defs></svg>
@@ -131,6 +131,18 @@ dl.facts.main dd{font-size:15px}
   </div>
 </div>
 
+<div id="rg" class="ov" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rh">
+    <h2 id="rh">نغمة التنبيه</h2>
+    <p class="hint">اختر أي نغمة من نغمات هاتفك لتُستخدم في إشعارات التقليب والفحص والفقس.</p>
+    <p class="tl" style="margin-top:14px;font-weight:800" id="rcur"></p>
+    <div class="hint" id="rmsg" role="status" style="min-height:20px"></div>
+    <div class="row"><button id="rpick">اختيار من الهاتف</button><button id="rtest" style="background:var(--bg);color:var(--ink)">تجربة</button></div>
+    <button id="rreset" class="ghost" style="width:100%;margin-top:12px;border-radius:14px;padding:12px">العودة للنغمة الافتراضية</button>
+    <button id="rclose" class="ghost" style="width:100%;margin-top:8px;border-radius:14px;padding:12px">إغلاق</button>
+  </div>
+</div>
+
 <div id="bk" class="ov" hidden>
   <div class="panel" role="dialog" aria-modal="true" aria-labelledby="bh">
     <h2 id="bh">نسخة احتياطية</h2>
@@ -147,6 +159,9 @@ const DAY=864e5,HR=36e5,$=s=>document.querySelector(s);
 const SP=[["دجاج",21,3],["بط",28,3],["بط مسكوفي",35,3],["إوز",30,3],["رومي",28,3],["سمان",17,3],["حمام",18,2],["نعام",42,3],["مخصص",21,3]];
 const EG="M50 4C74 4 92 52 92 82c0 26-19 44-42 44S8 108 8 82C8 52 26 4 50 4Z";
 const LN=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;
+const RP=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.RingtonePicker;
+let RING=null;try{RING=JSON.parse(localStorage.getItem("incRing")||"null")}catch(e){}
+const chId=()=>RING&&RING.ch?RING.ch:"hatch2";
 let S;try{S=JSON.parse(localStorage.getItem("inc")||"")}catch(e){}
 S=S&&S.b?S:{b:[],n:1};
 const save=()=>{try{localStorage.setItem("inc",JSON.stringify(S))}catch(e){}};
@@ -189,7 +204,7 @@ async function plan(b){
     const now=Date.now(),cap=Math.max(60,Math.floor(450/Math.max(1,S.b.length)));
     const all=ev(b).filter(e=>e.at>now),imp=all.filter(e=>!e.turn),tr=all.filter(e=>e.turn);
     const list=imp.concat(tr.slice(0,Math.max(0,cap-imp.length))).sort((a,c)=>a.at-c.at);
-    if(list.length)await LN.schedule({notifications:list.map((e,i)=>({id:b.id*1000+i,channelId:"hatch2",title:e.t,body:e.b,schedule:{at:new Date(e.at),allowWhileIdle:true}}))});
+    if(list.length)await LN.schedule({notifications:list.map((e,i)=>({id:b.id*1000+i,channelId:chId(),title:e.t,body:e.b,schedule:{at:new Date(e.at),allowWhileIdle:true}}))});
   }catch(e){}
 }
 let bi;
@@ -197,7 +212,7 @@ function banner(t,b){$("#bt").textContent=t;$("#bb").textContent=b;$("#bn").styl
 $("#bx").onclick=()=>{$("#bn").style.display="none";clearInterval(bi)};
 async function notify(t,b){
   try{
-    if(LN)await LN.schedule({notifications:[{id:999999,channelId:"hatch2",title:t,body:b,schedule:{at:new Date(Date.now()+1500)}}]});
+    if(LN)await LN.schedule({notifications:[{id:999999,channelId:chId(),title:t,body:b,schedule:{at:new Date(Date.now()+1500)}}]});
     else if("Notification"in window&&Notification.permission==="granted")new Notification(t,{body:b});
     else banner(t,b);
   }catch(e){}
@@ -379,6 +394,32 @@ $("#list").onclick=e=>{
   if(a==="turn"){(b.log=b.log||[]).push(Date.now());save();render()}
   if(a==="edit")openSheet(b);
   if(a==="cand")openSheet(b,"#cl");
+};
+
+/* ---------- نغمة التنبيه ---------- */
+const rmsg=t=>$("#rmsg").textContent=t;
+const rshow=()=>{$("#rcur").textContent="النغمة الحالية: "+(RING?(RING.title||"نغمة من الهاتف"):"الافتراضية للتطبيق")};
+$("#rgb").onclick=()=>{rshow();rmsg(RP?"":"اختيار النغمة يعمل داخل تطبيق أندرويد فقط.");$("#rg").hidden=false};
+$("#rclose").onclick=()=>{$("#rg").hidden=true};
+$("#rpick").onclick=async()=>{
+  if(!RP)return rmsg("اختيار النغمة يعمل داخل تطبيق أندرويد فقط.");
+  try{
+    await perm();
+    const r=await RP.pick({title:"اختر نغمة التنبيه",name:"تنبيهات المفقسة",current:RING?RING.uri:"",previous:RING?RING.ch:""});
+    if(!r||r.cancelled)return;
+    RING={ch:r.channelId,title:r.title,uri:r.uri};
+    try{localStorage.setItem("incRing",JSON.stringify(RING))}catch(e){}
+    rshow();rmsg("تم الحفظ. جارٍ تحديث التنبيهات...");
+    for(const b of S.b)await plan(b);
+    rmsg("تم تغيير النغمة ✓");notify("🐣 المفقسة","هذه هي النغمة الجديدة");
+  }catch(e){rmsg("تعذّر فتح قائمة النغمات.")}
+};
+$("#rtest").onclick=async()=>{await perm();beep();notify("🐣 المفقسة","تجربة النغمة")};
+$("#rreset").onclick=async()=>{
+  if(!RING)return rmsg("تستخدم النغمة الافتراضية بالفعل.");
+  const old=RING.ch;RING=null;try{localStorage.removeItem("incRing")}catch(e){}
+  try{if(RP)await RP.remove({channelId:old})}catch(e){}
+  rshow();for(const b of S.b)await plan(b);rmsg("عادت النغمة الافتراضية ✓");
 };
 
 /* ---------- النسخة الاحتياطية ---------- */
