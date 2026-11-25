@@ -210,11 +210,11 @@ async function plan(b){
   }catch(e){}
 }
 let bi;
-function banner(t,b){$("#bt").textContent=t;$("#bb").textContent=b;$("#bn").style.display="block";clearInterval(bi);bi=setInterval(beep,5000)}
-$("#bx").onclick=()=>{$("#bn").style.display="none";clearInterval(bi)};
-async function notify(t,b){
+function banner(t,b){$("#bt").textContent=t;$("#bb").textContent=b;$("#bn").style.display="block";clearInterval(bi);if(!LN)bi=setInterval(beep,5000)}
+$("#bx").onclick=()=>stopAlarm();
+async function notify(t,b,loop){
   try{
-    if(LN)await LN.schedule({notifications:[{id:999999,channelId:chId(),title:t,body:b,schedule:{at:new Date(Date.now()+1500)}}]});
+    if(LN)await LN.schedule({notifications:[{id:999999,channelId:chId(),title:t,body:b,schedule:{at:new Date(Date.now()+1500)},autoCancel:!loop,extra:loop?{loop:true}:undefined}]});
     else if("Notification"in window&&Notification.permission==="granted")new Notification(t,{body:b});
     else banner(t,b);
   }catch(e){}
@@ -356,7 +356,7 @@ const closeSheet=()=>{$("#sheet").hidden=true};
 $("#cn").onclick=closeSheet;
 document.querySelectorAll(".ov").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.hidden=true}));
 $("#fab").onclick=()=>openSheet(null);
-$("#tn").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅")};
+$("#tn").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅",true);if(LN)setTimeout(()=>banner("تنبيه تجريبي","اضغط للإيقاف إذا تكرر الصوت"),1600)};
 
 $("#sv").onclick=()=>{
   const i=+$("#sp").value,sp=SP[i];
@@ -416,7 +416,7 @@ $("#rpick").onclick=async()=>{
     rmsg("تم تغيير النغمة ✓");notify("🐣 المفقسة","هذه هي النغمة الجديدة");
   }catch(e){rmsg("تعذّر فتح قائمة النغمات.")}
 };
-$("#rtest").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","تجربة النغمة")};
+$("#rtest").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","تجربة النغمة",true);if(LN)setTimeout(()=>banner("تجربة النغمة","اضغط للإيقاف"),1600)};
 $("#rreset").onclick=async()=>{
   if(!RING)return rmsg("تستخدم النغمة الافتراضية بالفعل.");
   const old=RING.ch;RING=null;try{localStorage.removeItem("incRing")}catch(e){}
