@@ -74,7 +74,7 @@ public class RingtonePickerPlugin extends Plugin {
             NotificationChannel ch = new NotificationChannel(id, call.getString("name", "Hatch alerts"), NotificationManager.IMPORTANCE_HIGH);
             AudioAttributes aa = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIC)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build();
             ch.setSound(uri, aa);
             ch.enableVibration(true);
