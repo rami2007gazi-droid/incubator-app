@@ -224,7 +224,7 @@ let lastCheck=Date.now();
 setInterval(()=>{
   const now=Date.now();let hit=0;
   S.b.forEach(b=>ev(b).forEach(e=>{if(e.at>lastCheck&&e.at<=now){hit=1;if(!LN)notify(e.t,e.b)}}));
-  if(hit)beep();lastCheck=now;
+  if(hit&&!LN)beep();lastCheck=now;
 },1000);
 
 /* ---------- مراحل النمو والنصائح ---------- */
@@ -356,7 +356,7 @@ const closeSheet=()=>{$("#sheet").hidden=true};
 $("#cn").onclick=closeSheet;
 document.querySelectorAll(".ov").forEach(o=>o.addEventListener("click",e=>{if(e.target===o)o.hidden=true}));
 $("#fab").onclick=()=>openSheet(null);
-$("#tn").onclick=async()=>{await perm();beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅")};
+$("#tn").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅")};
 
 $("#sv").onclick=()=>{
   const i=+$("#sp").value,sp=SP[i];
@@ -416,7 +416,7 @@ $("#rpick").onclick=async()=>{
     rmsg("تم تغيير النغمة ✓");notify("🐣 المفقسة","هذه هي النغمة الجديدة");
   }catch(e){rmsg("تعذّر فتح قائمة النغمات.")}
 };
-$("#rtest").onclick=async()=>{await perm();beep();notify("🐣 المفقسة","تجربة النغمة")};
+$("#rtest").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","تجربة النغمة")};
 $("#rreset").onclick=async()=>{
   if(!RING)return rmsg("تستخدم النغمة الافتراضية بالفعل.");
   const old=RING.ch;RING=null;try{localStorage.removeItem("incRing")}catch(e){}
