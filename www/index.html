@@ -447,7 +447,7 @@ $("#bimp").onclick=async()=>{
   for(const b of S.b)await plan(b);
   render();$("#bk").hidden=true;
 };
-document.addEventListener("visibilitychange",()=>{if(!document.hidden){S.b.forEach(plan);lastCheck=Date.now();try{localStorage.setItem("incLastCheck",String(lastCheck))}catch(e){}}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)S.b.forEach(plan)});
 
 S.b.forEach(plan);render();setInterval(tick,1000);
 </script>
