@@ -16,7 +16,8 @@ if (!m.includes("POST_NOTIFICATIONS")) {
 }
 
 // نغمة الإشعار: ضع أي ملف باسم ringtone.wav أو ringtone.mp3 أو ringtone.ogg داخل مجلد resources
-const rf = fs.readdirSync("resources").find(f => /^ringtone\.(wav|mp3|ogg)$/i.test(f));
+const resourcesDir = path.join("resources");
+const rf = fs.existsSync(resourcesDir) ? fs.readdirSync(resourcesDir).find(f => /^ringtone\.(wav|mp3|ogg)$/i.test(f)) : null;
 if (rf) {
   const raw = path.join("android", "app", "src", "main", "res", "raw");
   fs.mkdirSync(raw, { recursive: true });
@@ -44,8 +45,10 @@ if (fs.existsSync(iconsDir)) {
   const lnm = path.join("node_modules", "@capacitor", "local-notifications", "android", "src", "main", "java", "com", "capacitorjs", "plugins", "localnotifications", "LocalNotificationManager.java");
   let src = fs.readFileSync(lnm, "utf8");
   const needle = "Notification buildNotification = mBuilder.build();";
-  if (!src.includes(needle)) throw new Error("تعذّر تعديل LocalNotificationManager: تغيّر الكود في هذه النسخة");
-  if (!src.includes("FLAG_INSISTENT")) {
+  const marker = 'localNotification.getExtra().optBoolean("loop", false)';
+  const matches = src.split(needle).length - 1;
+  if (matches !== 1) throw new Error("تعذّر تعديل LocalNotificationManager: موضع التعديل غير موجود أو غير فريد");
+  if (!src.includes(marker)) {
     src = src.replace(needle, needle + `
         if (localNotification.getExtra() != null && localNotification.getExtra().optBoolean("loop", false)) {
             buildNotification.flags |= Notification.FLAG_INSISTENT;
