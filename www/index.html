@@ -193,11 +193,13 @@ function ev(b){
   return o.sort((a,c)=>a.at-c.at);
 }
 // إيقاف صوت التقليب المتكرر: يُزيل الإشعارات الظاهرة ويُسكت تنبيه الشاشة
-function stopAlarm(){clearInterval(bi);$("#bn").style.display="none";try{if(LN)LN.removeAllDeliveredNotifications()}catch(e){}}
-async function perm(){try{if(LN)await LN.requestPermissions();else if("Notification"in window&&Notification.permission==="default")await Notification.requestPermission()}catch(e){}}
+async function stopAlarm(batch){clearInterval(bi);$("#bn").style.display="none";try{if(LN){const r=await LN.getDeliveredNotifications();const ids=(r.notifications||[]).filter(n=>batch?Math.floor(n.id/1000)===batch.id:n.id===999999).map(n=>({id:n.id}));if(ids.length)await LN.removeDeliveredNotifications({notifications:ids})}}catch(e){console.warn("تعذّر إيقاف التنبيه:",e)}}
+async function perm(){try{if(LN){const p=await LN.requestPermissions();return p&&p.display==="granted"}if("Notification"in window){if(Notification.permission==="default")await Notification.requestPermission();return Notification.permission==="granted"}return false}catch(e){console.warn("تعذّر طلب صلاحية الإشعارات:",e);return false}}
 async function plan(b){
   if(!LN)return;
   try{
+    const permission=await LN.checkPermissions();
+    if(!permission||permission.display!=="granted")return;
     await CH;
     const pend=await LN.getPending();
     const ids=pend.notifications.filter(n=>Math.floor(n.id/1000)==b.id).map(n=>({id:n.id}));
@@ -207,7 +209,7 @@ async function plan(b){
     const all=ev(b).filter(e=>e.at>now),imp=all.filter(e=>!e.turn),tr=all.filter(e=>e.turn);
     const list=imp.concat(tr.slice(0,Math.max(0,cap-imp.length))).sort((a,c)=>a.at-c.at);
     if(list.length)await LN.schedule({notifications:list.map((e,i)=>({id:b.id*1000+i,channelId:chId(),title:e.t,body:e.b,schedule:{at:new Date(e.at),allowWhileIdle:true},autoCancel:!e.turn,extra:e.turn?{loop:true}:undefined}))});
-  }catch(e){}
+  }catch(e){console.error("تعذّرت جدولة إشعارات الدفعة "+b.id,e)}
 }
 let bi;
 function banner(t,b){$("#bt").textContent=t;$("#bb").textContent=b;$("#bn").style.display="block";clearInterval(bi);if(!LN)bi=setInterval(beep,5000)}
@@ -220,11 +222,12 @@ async function notify(t,b,loop){
   }catch(e){}
 }
 // يشغّل الصوت داخل التطبيق عند كل موعد (والإشعار في المتصفح)
-let lastCheck=Date.now();
+let lastCheck=(()=>{try{const n=Number(localStorage.getItem("incLastCheck"));return Number.isFinite(n)&&n>0?n:Date.now()}catch(e){return Date.now()}})();
 setInterval(()=>{
   const now=Date.now();let hit=0;
   S.b.forEach(b=>ev(b).forEach(e=>{if(e.at>lastCheck&&e.at<=now){hit=1;if(!LN)notify(e.t,e.b)}}));
   if(hit&&!LN)beep();lastCheck=now;
+  try{localStorage.setItem("incLastCheck",String(lastCheck))}catch(e){}
 },1000);
 
 /* ---------- مراحل النمو والنصائح ---------- */
@@ -349,7 +352,7 @@ function openSheet(b,focus){
   $("#dl").style.display=b?"block":"none";
   ivHint();
   $("#sheet").hidden=false;
-  if(!b)perm();
+  /* تُطلب الصلاحية عند الحفظ، وليس بمجرد فتح النموذج. */
   if(focus)setTimeout(()=>$(focus).focus(),50);
 }
 const closeSheet=()=>{$("#sheet").hidden=true};
@@ -358,7 +361,7 @@ document.querySelectorAll(".ov").forEach(o=>o.addEventListener("click",e=>{if(e.
 $("#fab").onclick=()=>openSheet(null);
 $("#tn").onclick=async()=>{await perm();if(!LN)beep();notify("🐣 المفقسة","الإشعارات والصوت يعملان ✅",true);if(LN)setTimeout(()=>banner("تنبيه تجريبي","اضغط للإيقاف إذا تكرر الصوت"),1600)};
 
-$("#sv").onclick=()=>{
+$("#sv").onclick=async()=>{
   const i=+$("#sp").value,sp=SP[i];
   const start=new Date($("#st").value).getTime();
   if(!start)return alert("اختر وقت بداية الحضانة");
@@ -374,7 +377,7 @@ $("#sv").onclick=()=>{
   if(!editId){
     const b={id:S.n++,name,sp:i,eggs,start,days,lock:sp[2],iv,log:[]};
     if(cd)b.cand=cd;
-    S.b.push(b);save();plan(b);
+    S.b.push(b);save();const allowed=await perm();if(allowed)await plan(b);
   }else{
     const b=S.b.find(x=>x.id==editId);if(!b)return closeSheet();
     Object.assign(b,{name,sp:i,eggs,days,lock:sp[2],iv});
@@ -393,7 +396,7 @@ $("#dl").onclick=()=>{
 $("#list").onclick=e=>{
   const a=e.target.dataset.a;if(!a)return;
   const id=+e.target.closest(".batch").dataset.id,b=S.b.find(x=>x.id==id);if(!b)return;
-  if(a==="turn"){(b.log=b.log||[]).push(Date.now());save();stopAlarm();render()}
+  if(a==="turn"){(b.log=b.log||[]).push(Date.now());save();stopAlarm(b);render()}
   if(a==="edit")openSheet(b);
   if(a==="cand")openSheet(b,"#cl");
 };
@@ -435,8 +438,9 @@ $("#bcopy").onclick=async()=>{
 };
 $("#bimp").onclick=async()=>{
   let d;try{d=JSON.parse($("#bt2").value)}catch(e){return bmsg("النص غير صالح. تأكد من لصق النسخة كاملة.")}
-  const ok=x=>x&&[x.id,x.eggs,x.start,x.days,x.lock,x.iv].every(v=>typeof v==="number"&&isFinite(v))&&typeof x.name==="string"&&x.iv>0;
-  if(!d||!Array.isArray(d.b)||!d.b.every(ok))return bmsg("النص غير صالح. تأكد من لصق النسخة كاملة.");
+  const ok=x=>x&&typeof x==="object"&&!Array.isArray(x)&&Number.isSafeInteger(x.id)&&x.id>0&&Number.isSafeInteger(x.eggs)&&x.eggs>0&&Number.isFinite(x.start)&&x.start>0&&Number.isSafeInteger(x.days)&&x.days>0&&Number.isSafeInteger(x.lock)&&x.lock>=0&&x.lock<x.days&&Number.isFinite(x.iv)&&x.iv>0&&x.iv<=24&&typeof x.name==="string"&&x.name.length<=120&&(x.sp===undefined||(Number.isInteger(x.sp)&&x.sp>=0&&x.sp<SP.length))&&(x.tb===undefined||(Number.isFinite(x.tb)&&x.tb>0))&&(x.cand===undefined||(x.cand&&Number.isSafeInteger(x.cand.c)&&Number.isSafeInteger(x.cand.f)&&x.cand.c>=0&&x.cand.f>=0&&x.cand.c+x.cand.f===x.eggs))&&(x.log===undefined||(Array.isArray(x.log)&&x.log.length<=10000&&x.log.every(t=>Number.isFinite(t)&&t>0)));
+  const ids=new Set();
+  if(!d||d.v!==1||!Array.isArray(d.b)||d.b.length>1000||!d.b.every(x=>ok(x)&&!ids.has(x.id)&&ids.add(x.id)))return bmsg("النسخة غير صالحة أو تحتوي بيانات غير مكتملة/مكررة.");
   if(!confirm("سيستبدل الاستيراد كل الدفعات الحالية بـ "+d.b.length+" دفعة. متابعة؟"))return;
   for(const b of S.b){b.gone=1;await plan(b)}
   S.b=d.b;S.n=Math.max(+d.n||1,...d.b.map(x=>x.id+1),1);save();
